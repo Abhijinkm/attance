@@ -487,75 +487,61 @@ function App() {
 
   const renderFees = () => {
     const isPaid = (student) => student.paidMonths && student.paidMonths[feeMonth];
-    
-    const unpaidStudents = searchedStudents.filter(s => !isPaid(s)).length;
-    const monthlyCollected = searchedStudents.filter(s => isPaid(s)).length * 1000;
-    const admissionCollected = searchedStudents.filter(s => s.admissionPaid === feeMonth).length * 2000;
-    const totalCollected = monthlyCollected + admissionCollected;
 
-    return (
-      <div className="fees-container">
-        {/* Month Selector Header */}
-        <div className="panel" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 className="panel-title" style={{ margin: 0 }}>Fee Management</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Select Month:</span>
-            <input 
-              type="month" 
-              className="form-control" 
-              style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
-              value={feeMonth}
-              onChange={(e) => setFeeMonth(e.target.value)}
-            />
-          </div>
-        </div>
+    const renderBatchTable = (scheduleName) => {
+      const batchStudents = searchedStudents.filter(s => s.schedule === scheduleName);
+      if (batchStudents.length === 0) return null;
+      
+      const batchUnpaid = batchStudents.filter(s => !isPaid(s)).length;
+      const batchPaid = batchStudents.filter(s => isPaid(s)).length;
 
-        <div className="stats-grid">
-          <div className="stat-card" style={{ borderLeft: '4px solid #E50914' }}>
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(229, 9, 20, 0.1)' }}>
-              <Banknote className="stat-icon" style={{ color: '#E50914' }} />
-            </div>
-            <div className="stat-details">
-              <h3>Monthly Fees Collected</h3>
-              <p className="stat-value">₹{monthlyCollected}</p>
-            </div>
-          </div>
-          <div className="stat-card" style={{ borderLeft: '4px solid #FFD700' }}>
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(255, 215, 0, 0.1)' }}>
-              <Receipt className="stat-icon" style={{ color: '#FFD700' }} />
-            </div>
-            <div className="stat-details">
-              <h3>Admission Fees Collected</h3>
-              <p className="stat-value">₹{admissionCollected}</p>
-            </div>
-          </div>
-          <div className="stat-card" style={{ borderLeft: '4px solid #4CAF50' }}>
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(76, 175, 80, 0.1)' }}>
-              <Wallet className="stat-icon" style={{ color: '#4CAF50' }} />
-            </div>
-            <div className="stat-details">
-              <h3>Total Collected</h3>
-              <p className="stat-value" style={{ color: '#4CAF50' }}>₹{totalCollected}</p>
-            </div>
-          </div>
-        </div>
-
+      const batchMonthlyCollected = batchStudents.filter(s => isPaid(s)).length * 1000;
+      const batchAdmissionCollected = batchStudents.filter(s => s.admissionPaid === feeMonth).length * 2000;
+      const batchTotalCollected = batchMonthlyCollected + batchAdmissionCollected;
+      
+      return (
         <div className="panel" style={{ overflowX: 'auto', marginTop: '2rem' }}>
           <div className="panel-header">
-            <h3 className="panel-title">Student Fee Status ({feeMonth})</h3>
-            <span className="badge badge-orange">{unpaidStudents} Pending</span>
+            <h3 className="panel-title">{scheduleName} Batch ({feeMonth})</h3>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <span className="badge badge-green">{batchPaid} Paid Monthly</span>
+              <span className="badge badge-orange">{batchUnpaid} Pending Monthly</span>
+            </div>
           </div>
+
+          <div className="stats-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #E50914', padding: '1.5rem' }}>
+              <div className="stat-details">
+                <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Monthly Fees</h3>
+                <p className="stat-value" style={{ fontSize: '1.5rem', color: '#E50914' }}>₹{batchMonthlyCollected}</p>
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #FFD700', padding: '1.5rem' }}>
+              <div className="stat-details">
+                <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Admission Fees</h3>
+                <p className="stat-value" style={{ fontSize: '1.5rem', color: '#FFD700' }}>₹{batchAdmissionCollected}</p>
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #4CAF50', padding: '1.5rem' }}>
+              <div className="stat-details">
+                <h3 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Total Collected</h3>
+                <p className="stat-value" style={{ fontSize: '1.5rem', color: '#4CAF50' }}>₹{batchTotalCollected}</p>
+              </div>
+            </div>
+          </div>
+
           <table className="data-table">
             <thead>
               <tr>
                 <th>Student</th>
+                <th>Batch Time</th>
                 <th>Admission (₹2000)</th>
                 <th>Monthly (₹1000)</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {searchedStudents.map(student => (
+              {batchStudents.map(student => (
                 <tr key={student.id}>
                   <td>
                     <div 
@@ -565,6 +551,7 @@ function App() {
                       {student.name}
                     </div>
                   </td>
+                  <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.batch}</span></td>
                   <td>
                     {student.admissionPaid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
                   </td>
@@ -590,6 +577,29 @@ function App() {
             </tbody>
           </table>
         </div>
+      );
+    };
+
+    return (
+      <div className="fees-container">
+        {/* Month Selector Header */}
+        <div className="panel" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className="panel-title" style={{ margin: 0 }}>Fee Management</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: 'var(--color-text-muted)' }}>Select Month:</span>
+            <input 
+              type="month" 
+              className="form-control" 
+              style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
+              value={feeMonth}
+              onChange={(e) => setFeeMonth(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {renderBatchTable('Mon-Thu')}
+        {renderBatchTable('Tue-Fri')}
+        {renderBatchTable('Wed-Sat')}
       </div>
     );
   };
