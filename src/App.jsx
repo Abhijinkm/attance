@@ -21,6 +21,8 @@ function App() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [scrolled, setScrolled] = useState(false);
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
   
   // Persistent State
   const [students, setStudents] = useState(() => {
@@ -98,8 +100,19 @@ function App() {
   
   // Form State
   const [newStudent, setNewStudent] = useState({
-    name: '', age: '', phone: '', belt: 'White', joinDate: new Date().toISOString().split('T')[0], batch: 'Morning', schedule: 'Mon-Thu'
+    name: '', age: '', phone: '', belt: 'White', joinDate: new Date().toISOString().split('T')[0], batch: 'Morning', schedule: 'Mon-Thu', photo: null
   });
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewStudent({...newStudent, photo: reader.result});
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Global Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -146,7 +159,7 @@ function App() {
     };
     setStudents([...students, student]);
     setIsAddModalOpen(false);
-    setNewStudent({ name: '', age: '', phone: '', belt: 'White', joinDate: new Date().toISOString().split('T')[0], batch: 'Morning', schedule: 'Mon-Thu' });
+    setNewStudent({ name: '', age: '', phone: '', belt: 'White', joinDate: new Date().toISOString().split('T')[0], batch: 'Morning', schedule: 'Mon-Thu', photo: null });
   };
 
   const markFeePaid = (id, feeType) => {
@@ -203,7 +216,7 @@ function App() {
           <a href="#instructors" className="nav-link">Instructors</a>
           <a href="#gallery" className="nav-link">Gallery</a>
           <a href="#contact" className="nav-link">Contact</a>
-          <button className="btn-outline-primary" onClick={() => setAppMode('admin')}>
+          <button className="btn-outline-primary" onClick={() => setAppMode('login')}>
             Admin Login
           </button>
         </div>
@@ -701,9 +714,9 @@ function App() {
                     <td>{student.phone}</td>
                     <td><span className="badge badge-red">₹{!student.admissionPaid ? 3000 : 1000}</span></td>
                     <td>
-                      <button className="btn-small" style={{ background: '#25D366', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <a href={`https://wa.me/${student.phone}`} target="_blank" rel="noreferrer" className="btn-small" style={{ background: '#25D366', color: 'white', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
                         <MessageCircle size={14} /> WhatsApp
-                      </button>
+                      </a>
                     </td>
                   </tr>
                 ))}
@@ -720,8 +733,46 @@ function App() {
     );
   };
 
+  // --- Admin Login View ---
+  const renderLogin = () => (
+    <div className="login-layout" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: "url('https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop')", backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(5,5,5,0.85)' }}></div>
+      <div className="glass-panel" style={{ zIndex: 1, padding: '3rem', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+        <h2 className="brand" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
+          <span className="brand-accent">UMAI</span> Admin
+        </h2>
+        {loginError && <div style={{ color: '#E50914', marginBottom: '1rem', background: 'rgba(229, 9, 20, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(229, 9, 20, 0.3)' }}>{loginError}</div>}
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (loginData.username === 'admin' && loginData.password === 'admin123') {
+            setLoginError('');
+            setLoginData({ username: '', password: '' });
+            setAppMode('admin');
+          } else {
+            setLoginError('Invalid username or password');
+          }
+        }}>
+          <div className="form-group" style={{ textAlign: 'left' }}>
+            <label>Username</label>
+            <input type="text" className="form-control" placeholder="Enter username" value={loginData.username} onChange={(e) => setLoginData({...loginData, username: e.target.value})} required />
+          </div>
+          <div className="form-group" style={{ textAlign: 'left' }}>
+            <label>Password</label>
+            <input type="password" className="form-control" placeholder="Enter password" value={loginData.password} onChange={(e) => setLoginData({...loginData, password: e.target.value})} required />
+          </div>
+          <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }}>Login to Dashboard</button>
+        </form>
+        <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', border: 'none', background: 'transparent' }} onClick={() => { setLoginError(''); setAppMode('website'); }}>Back to Website</button>
+      </div>
+    </div>
+  );
+
   if (appMode === 'website') {
     return renderPublic();
+  }
+
+  if (appMode === 'login') {
+    return renderLogin();
   }
 
   // --- Main Admin Dashboard Template ---
@@ -839,19 +890,33 @@ function App() {
                     <tbody>
                       {searchedStudents.map(student => (
                         <tr key={student.id}>
-                          <td 
-                            style={{ fontWeight: 500, color: '#E50914', cursor: 'pointer', textDecoration: 'underline' }}
-                            onClick={() => setSelectedStudent(student)}
-                          >
-                            {student.name}
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setSelectedStudent(student)}>
+                              {student.photo ? (
+                                <img src={student.photo} alt="" style={{ width: '30px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '30px', height: '40px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: 'white', textDecoration: 'none' }}>
+                                  {student.name.charAt(0)}
+                                </div>
+                              )}
+                              <span style={{ fontWeight: 500, color: '#E50914', textDecoration: 'underline' }}>{student.name}</span>
+                            </div>
                           </td>
                           <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.schedule} • {student.batch}</span></td>
                           <td><span className={`badge ${getBeltColorClass(student.belt)}`}>{student.belt}</span></td>
                           <td style={{ color: 'var(--color-text-muted)' }}>{student.phone}</td>
                           <td>
-                            <button className="btn-icon" onClick={() => handleDeleteStudent(student.id)} style={{ color: '#F44336' }} title="Delete">
-                              <Trash2 size={18} />
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <a href={`tel:${student.phone}`} className="btn-icon" style={{ color: '#2196F3' }} title="Call Student">
+                                <Phone size={18} />
+                              </a>
+                              <a href={`https://wa.me/${student.phone}`} target="_blank" rel="noreferrer" className="btn-icon" style={{ color: '#25D366' }} title="WhatsApp Student">
+                                <MessageCircle size={18} />
+                              </a>
+                              <button className="btn-icon" onClick={() => handleDeleteStudent(student.id)} style={{ color: '#F44336' }} title="Delete">
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -881,13 +946,29 @@ function App() {
             </div>
             <div style={{ padding: '1rem 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1.5rem' }}>{selectedStudent.name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  {selectedStudent.photo ? (
+                    <img src={selectedStudent.photo} alt={selectedStudent.name} style={{ width: '90px', height: '120px', borderRadius: '8px', objectFit: 'cover', border: '2px solid var(--color-primary)' }} />
+                  ) : (
+                    <div style={{ width: '90px', height: '120px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 'bold' }}>
+                      {selectedStudent.name.charAt(0)}
+                    </div>
+                  )}
+                  <h3 style={{ margin: 0, fontSize: '1.5rem' }}>{selectedStudent.name}</h3>
+                </div>
                 <span className={`badge ${getBeltColorClass(selectedStudent.belt)}`}>{selectedStudent.belt}</span>
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                 <div><span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Age</span><div style={{ fontWeight: 600 }}>{selectedStudent.age} Years</div></div>
-                <div><span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Phone</span><div style={{ fontWeight: 600 }}>{selectedStudent.phone}</div></div>
+                <div>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Phone</span>
+                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {selectedStudent.phone}
+                    <a href={`tel:${selectedStudent.phone}`} style={{ color: '#2196F3', display: 'flex' }} title="Call"><Phone size={14} /></a>
+                    <a href={`https://wa.me/${selectedStudent.phone}`} target="_blank" rel="noreferrer" style={{ color: '#25D366', display: 'flex' }} title="WhatsApp"><MessageCircle size={14} /></a>
+                  </div>
+                </div>
                 <div><span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Join Date</span><div style={{ fontWeight: 600 }}>{selectedStudent.joinDate}</div></div>
                 <div><span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Status</span><div style={{ fontWeight: 600, color: '#4CAF50' }}>{selectedStudent.status}</div></div>
               </div>
@@ -928,6 +1009,19 @@ function App() {
               <button className="btn-icon" onClick={() => setIsAddModalOpen(false)}><X size={24} /></button>
             </div>
             <form onSubmit={handleAddStudent}>
+              <div className="form-group">
+                <label>Student Photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  {newStudent.photo ? (
+                    <img src={newStudent.photo} alt="Preview" style={{ width: '60px', height: '80px', borderRadius: '6px', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '60px', height: '80px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <UserPlus size={24} color="rgba(255,255,255,0.3)" />
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" className="form-control" onChange={handlePhotoUpload} style={{ paddingTop: '0.5rem' }} />
+                </div>
+              </div>
               <div className="form-group">
                 <label>Full Name</label>
                 <input type="text" className="form-control" required value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} placeholder="Enter name"/>
