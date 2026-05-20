@@ -23,6 +23,8 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
+  const [loggedInUser, setLoggedInUser] = useState('admin');
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   
   // Persistent State
   const [students, setStudents] = useState(() => {
@@ -117,10 +119,13 @@ function App() {
   // Global Search State
   const [searchQuery, setSearchQuery] = useState('');
   
-  const searchedStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.phone.includes(searchQuery)
-  );
+  const searchedStudents = students.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.phone.includes(searchQuery);
+    if (loggedInUser === 'batch1') {
+      return matchesSearch && s.schedule === 'Mon-Thu';
+    }
+    return matchesSearch;
+  });
 
   const getBeltColorClass = (belt) => {
     switch(belt.toLowerCase()) {
@@ -209,16 +214,21 @@ function App() {
     <div className="public-layout">
       <nav className={`public-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="brand" style={{ cursor: 'pointer' }} onClick={() => window.scrollTo(0,0)}>
-          <span className="brand-accent">UMAI</span> Academy
+          <span className="brand-accent">MASTER</span> FIT
         </div>
         <div className="nav-links">
           <a href="#schedule" className="nav-link">Schedule</a>
           <a href="#instructors" className="nav-link">Instructors</a>
           <a href="#gallery" className="nav-link">Gallery</a>
           <a href="#contact" className="nav-link">Contact</a>
-          <button className="btn-outline-primary" onClick={() => setAppMode('login')}>
-            Admin Login
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn-outline-primary" onClick={() => setAppMode('login')}>
+              Admin Login
+            </button>
+            <button className="btn-primary" onClick={() => setAppMode('batch_login')}>
+              Batch Login
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -227,7 +237,7 @@ function App() {
         <div className="hero-overlay"></div>
         <div className="hero-content">
           <span className="hero-subtitle">Master Your Mind & Body</span>
-          <h1 className="hero-title">United Martial Arts <span>Academy</span></h1>
+          <h1 className="hero-title">MASTER FIT <span>Academy</span></h1>
           <p className="hero-desc">
             Train with elite instructors in a premium facility. Choose from flexible batch timings and embark on your journey from white to black belt.
           </p>
@@ -335,7 +345,7 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '3rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><Phone size={18} color="var(--color-primary)" /> 555-0199</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><MapPin size={18} color="var(--color-primary)" /> 123 Dojo Street</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>IG</span> @umai_academy</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>IG</span> @masterfit_academy</div>
           </div>
         </div>
       </section>
@@ -739,30 +749,53 @@ function App() {
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(5,5,5,0.85)' }}></div>
       <div className="glass-panel" style={{ zIndex: 1, padding: '3rem', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
         <h2 className="brand" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
-          <span className="brand-accent">UMAI</span> Admin
+          <span className="brand-accent">MASTER</span> FIT Admin
         </h2>
-        {loginError && <div style={{ color: '#E50914', marginBottom: '1rem', background: 'rgba(229, 9, 20, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(229, 9, 20, 0.3)' }}>{loginError}</div>}
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          if (loginData.username === 'admin' && loginData.password === 'admin123') {
-            setLoginError('');
-            setLoginData({ username: '', password: '' });
-            setAppMode('admin');
-          } else {
-            setLoginError('Invalid username or password');
-          }
-        }}>
-          <div className="form-group" style={{ textAlign: 'left' }}>
-            <label>Username</label>
-            <input type="text" className="form-control" placeholder="Enter username" value={loginData.username} onChange={(e) => setLoginData({...loginData, username: e.target.value})} required />
-          </div>
-          <div className="form-group" style={{ textAlign: 'left' }}>
-            <label>Password</label>
-            <input type="password" className="form-control" placeholder="Enter password" value={loginData.password} onChange={(e) => setLoginData({...loginData, password: e.target.value})} required />
-          </div>
-          <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }}>Login to Dashboard</button>
-        </form>
-        <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', border: 'none', background: 'transparent' }} onClick={() => { setLoginError(''); setAppMode('website'); }}>Back to Website</button>
+        {isForgotPassword ? (
+          <>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>If you forgot your password, please contact the administrator via WhatsApp.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <a href="https://wa.me/5550199?text=Hi,%20I%20need%20to%20reset%20my%20password%20for%20the%20MASTER%20FIT%20Admin%20dashboard." target="_blank" rel="noreferrer" className="btn-primary" style={{ width: '100%', justifyContent: 'center', background: '#25D366', color: 'white', textDecoration: 'none' }}>
+                <MessageCircle size={18} style={{ marginRight: '8px' }} /> Contact via WhatsApp
+              </a>
+              <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', border: 'none', background: 'transparent' }} onClick={() => setIsForgotPassword(false)}>Back to Login</button>
+            </div>
+          </>
+        ) : (
+          <>
+            {loginError && <div style={{ color: '#E50914', marginBottom: '1rem', background: 'rgba(229, 9, 20, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(229, 9, 20, 0.3)' }}>{loginError}</div>}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const validUsers = {
+                'admin': 'admin123',
+                'batch1': 'batch123'
+              };
+              
+              if (validUsers[loginData.username] && validUsers[loginData.username] === loginData.password) {
+                setLoginError('');
+                setLoggedInUser(loginData.username);
+                setLoginData({ username: '', password: '' });
+                setAppMode('admin');
+              } else {
+                setLoginError('Invalid username or password');
+              }
+            }}>
+              <div className="form-group" style={{ textAlign: 'left' }}>
+                <label>Username</label>
+                <input type="text" className="form-control" placeholder="Enter username (admin or batch1)" value={loginData.username} onChange={(e) => setLoginData({...loginData, username: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ margin: 0 }}>Password</label>
+                  <a href="#" style={{ fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setIsForgotPassword(true); setLoginError(''); }}>Forgot Password?</a>
+                </div>
+                <input type="password" className="form-control" placeholder="Enter password" value={loginData.password} onChange={(e) => setLoginData({...loginData, password: e.target.value})} required />
+              </div>
+              <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }}>Login to Dashboard</button>
+            </form>
+            <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', border: 'none', background: 'transparent' }} onClick={() => { setLoginError(''); setAppMode('website'); }}>Back to Website</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -775,13 +808,75 @@ function App() {
     return renderLogin();
   }
 
+  if (appMode === 'batch_login') {
+    return (
+      <div className="login-layout" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: "url('https://images.unsplash.com/photo-1555597673-b21d5c935865?q=80&w=2069&auto=format&fit=crop')", backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(5,5,5,0.85)' }}></div>
+        <div className="glass-panel" style={{ zIndex: 1, padding: '3rem', width: '100%', maxWidth: '400px', textAlign: 'center', borderTop: '4px solid #E50914' }}>
+          <h2 className="brand" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+            <span className="brand-accent">Batch</span> Portal
+          </h2>
+          <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem', fontSize: '0.9rem' }}>Secure login for Master Fit students</p>
+          
+          {isForgotPassword ? (
+            <>
+              <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Forgot your batch password? Contact your trainer via WhatsApp to reset it.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <a href="https://wa.me/5550199?text=Hi,%20I%20am%20a%20student%20and%20I%20need%20to%20reset%20my%20Batch%20Login%20password." target="_blank" rel="noreferrer" className="btn-primary" style={{ width: '100%', justifyContent: 'center', background: '#25D366', color: 'white', textDecoration: 'none' }}>
+                  <MessageCircle size={18} style={{ marginRight: '8px' }} /> Message Trainer
+                </a>
+                <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', border: 'none', background: 'transparent' }} onClick={() => setIsForgotPassword(false)}>Back to Login</button>
+              </div>
+            </>
+          ) : (
+            <>
+              {loginError && <div style={{ color: '#E50914', marginBottom: '1rem', background: 'rgba(229, 9, 20, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(229, 9, 20, 0.3)' }}>{loginError}</div>}
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const validBatches = {
+                  'batch1': 'batch123',
+                  'batch2': 'batch456',
+                  'batch3': 'batch789'
+                };
+                
+                const username = loginData.username.trim().toLowerCase();
+                if (validBatches[username] && validBatches[username] === loginData.password) {
+                  setLoginError('');
+                  setLoggedInUser(username);
+                  setLoginData({ username: '', password: '' });
+                  setAppMode('admin'); // Reusing the admin dashboard layout for the batch view
+                } else {
+                  setLoginError('Invalid batch ID or password');
+                }
+              }}>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label>Batch ID</label>
+                  <input type="text" className="form-control" placeholder="e.g. batch1" value={loginData.username} onChange={(e) => setLoginData({...loginData, username: e.target.value})} required />
+                </div>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ margin: 0 }}>Password</label>
+                    <a href="#" style={{ fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setIsForgotPassword(true); setLoginError(''); }}>Forgot Password?</a>
+                  </div>
+                  <input type="password" className="form-control" placeholder="Enter password" value={loginData.password} onChange={(e) => setLoginData({...loginData, password: e.target.value})} required />
+                </div>
+                <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }}>Access Dashboard</button>
+              </form>
+              <button type="button" className="btn-outline-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', border: 'none', background: 'transparent' }} onClick={() => { setLoginError(''); setAppMode('website'); }}>Back to Website</button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // --- Main Admin Dashboard Template ---
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2 className="brand" style={{ cursor: 'pointer' }} onClick={() => setAppMode('website')}>
-            <span className="brand-accent">UMAI</span> Admin
+            <span className="brand-accent">MASTER</span> FIT Admin
           </h2>
         </div>
         <nav className="nav-menu">
