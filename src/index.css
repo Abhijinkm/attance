@@ -769,6 +769,8 @@ body {
 .badge-green { background: #4CAF50; color: #fff; }
 .badge-blue { background: #2196F3; color: #fff; }
 .badge-red { background: #E50914; color: #fff; }
+.badge-purple { background: #9C27B0; color: #fff; }
+.badge-brown { background: #795548; color: #fff; }
 .badge-black { background: #111; color: #fff; border: 1px solid #333; }
 
 /* Modal */
@@ -889,4 +891,11 @@ body {
   .nav-link { font-size: 0.75rem; }
   .brand { font-size: 1.2rem; }
   .page-title { font-size: 1.2rem; }
+}
+
+/* Year Calendar mini-day Hover Effects */
+.mini-day:hover:not(.empty) {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: white !important;
+  transform: scale(1.15);
 }
