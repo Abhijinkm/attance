@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Users, CalendarDays, Wallet, Bell, Settings, LogOut, UserPlus, AlertTriangle, X, 
   ChevronLeft, ChevronRight, CheckCircle, XCircle, MessageCircle, 
-  Search, Phone, Trash2, ArrowRight, Activity, MapPin, TrendingUp, Award
+  Search, Phone, Trash2, ArrowRight, Activity, MapPin, TrendingUp, Award, Menu
 } from 'lucide-react';
 import './index.css';
 
@@ -30,6 +30,10 @@ function App() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [selectedBranchLogin, setSelectedBranchLogin] = useState('Kuttiady');
   const [selectedBatchLogin, setSelectedBatchLogin] = useState('admin');
+  
+  // Mobile drawer states
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Settings Form States
   const [settingsError, setSettingsError] = useState('');
@@ -208,11 +212,18 @@ function App() {
       } else if (hash === '' || hash === '#/' || hash === '#/home') {
         setAppMode('website');
       }
+      setIsMobileMenuOpen(false);
+      setIsSidebarOpen(false);
     };
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange(); // Run on initial load
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Close sidebar on view changes
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [currentView]);
 
   // Sync state changes back to URL hash
   useEffect(() => {
@@ -395,16 +406,19 @@ function App() {
   const renderPublic = () => (
     <div className="public-layout">
       <nav className={`public-nav ${scrolled ? 'scrolled' : ''}`}>
-        <div className="brand" style={{ cursor: 'pointer' }} onClick={() => window.scrollTo(0,0)}>
+        <div className="brand" style={{ cursor: 'pointer' }} onClick={() => { window.scrollTo(0,0); setIsMobileMenuOpen(false); }}>
           <span className="brand-accent">MASTER</span> FIT
         </div>
-        <div className="nav-links">
-          <a href="#schedule" className="nav-link">Schedule</a>
-          <a href="#instructors" className="nav-link">Instructors</a>
-          <a href="#gallery" className="nav-link">Gallery</a>
-          <a href="#contact" className="nav-link">Contact</a>
+        <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        <div className={`nav-links ${isMobileMenuOpen ? 'open' : ''}`}>
+          <a href="#schedule" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Schedule</a>
+          <a href="#instructors" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Instructors</a>
+          <a href="#gallery" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Gallery</a>
+          <a href="#contact" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Contact</a>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn-outline-primary" onClick={() => setAppMode('login')}>
+            <button className="btn-outline-primary" onClick={() => { setAppMode('login'); setIsMobileMenuOpen(false); }}>
               Login
             </button>
           </div>
@@ -509,7 +523,7 @@ function App() {
         <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }} className="glass-panel panel">
           <h2 className="section-title" style={{ fontSize: '2rem' }}>Ready to Start?</h2>
           <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem' }}>Fill out the form below to schedule your free trial class.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem', textAlign: 'left' }}>
+          <div className="grid-2-col" style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
             <div className="form-group">
               <label>Name</label>
               <input type="text" className="form-control" placeholder="Your Name" />
@@ -521,7 +535,7 @@ function App() {
           </div>
           <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Send Registration Request</button>
           
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '3rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem' }}>
+          <div className="contact-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><Phone size={18} color="var(--color-primary)" /> 555-0199</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><MapPin size={18} color="var(--color-primary)" /> 123 Dojo Street</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>IG</span> @masterfit_academy</div>
@@ -1483,11 +1497,17 @@ function App() {
   // --- Main Admin Dashboard Template ---
   return (
     <div className="dashboard-container">
-      <aside className="sidebar">
+      {/* Sidebar drawer backdrop for mobile */}
+      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)}></div>}
+      
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h2 className="brand" style={{ cursor: 'pointer' }} onClick={() => setAppMode('website')}>
             <span className="brand-accent">MASTER</span> FIT Admin
           </h2>
+          <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(false)}>
+            <X size={24} />
+          </button>
         </div>
         <nav className="nav-menu">
           <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>
@@ -1525,14 +1545,26 @@ function App() {
 
       <main className="main-content">
         <header className="header">
-          <h1 className="page-title">
-            {currentView === 'dashboard' && 'Admin Dashboard'}
-            {currentView === 'attendance' && 'Attendance Tracking'}
-            {currentView === 'fees' && 'Fee Management'}
-            {currentView === 'reminders' && 'Alerts & Reminders'}
-            {currentView === 'performance' && 'Student Performance'}
-            {currentView === 'settings' && 'Account Settings'}
-          </h1>
+          <div className="header-main-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button className="mobile-menu-btn" style={{ padding: 0 }} onClick={() => setIsSidebarOpen(true)}>
+                <Menu size={24} />
+              </button>
+              <h1 className="page-title">
+                {currentView === 'dashboard' && 'Admin Dashboard'}
+                {currentView === 'attendance' && 'Attendance Tracking'}
+                {currentView === 'fees' && 'Fee Management'}
+                {currentView === 'reminders' && 'Alerts & Reminders'}
+                {currentView === 'performance' && 'Student Performance'}
+                {currentView === 'settings' && 'Account Settings'}
+              </h1>
+            </div>
+            
+            <div className="user-profile-mobile">
+              <div className="avatar" title={`${loggedInUser} Panel`}>{loggedInUser.charAt(0).toUpperCase()}</div>
+            </div>
+          </div>
+          
           <div className="header-actions">
             {/* Branch Filter Selector */}
             <div style={{ position: 'relative' }}>
