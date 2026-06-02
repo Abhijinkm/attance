@@ -324,6 +324,7 @@ body {
   z-index: 1;
 }
 
+
 .sidebar {
   width: 260px;
   background: rgba(10, 10, 10, 0.4);
@@ -337,6 +338,11 @@ body {
 .sidebar-header {
   padding: 2rem;
   border-bottom: 1px solid var(--glass-border);
+}
+
+.sidebar-header .brand {
+  font-size: 1.3rem;
+  letter-spacing: 1px;
 }
 
 .brand {
@@ -1000,6 +1006,11 @@ body {
     align-items: center;
   }
   
+  .sidebar-header .brand {
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+  }
+  
   .nav-menu { 
     flex-direction: column; 
     overflow-y: auto;
@@ -1114,3 +1125,179 @@ body {
   transform: scale(1.15);
 }
 
+/* --- Responsive Layout Adjustments & Utilities --- */
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table td {
+  white-space: nowrap;
+}
+
+.filter-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.panel-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+}
+
+.profile-info-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .calendar-day {
+    min-height: 55px !important;
+    padding: 6px !important;
+  }
+  
+  .day-number {
+    font-size: 0.8rem !important;
+    margin-bottom: 2px !important;
+  }
+  
+  .attendance-indicator {
+    font-size: 0.7rem !important;
+    gap: 2px !important;
+  }
+  
+  .attendance-indicator svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-row {
+    gap: 0.5rem;
+  }
+  
+  .filter-row span {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+  
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .panel-header > div, 
+  .panel-header > button {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .panel-header .btn-primary {
+    justify-content: center;
+  }
+  
+  .panel-header-flex {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .panel-header-flex > div {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .w-full-mobile {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-day {
+    min-height: 42px !important;
+    padding: 4px !important;
+  }
+  
+  .calendar-grid {
+    gap: 4px !important;
+  }
+  
+  .calendar-grid-header {
+    font-size: 0.75rem !important;
+  }
+  
+  .day-number {
+    font-size: 0.75rem !important;
+    margin-bottom: 1px !important;
+  }
+  
+  .attendance-indicator {
+    font-size: 0.6rem !important;
+  }
+  
+  .attendance-indicator svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  .profile-header-top {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .profile-info-left {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button, 
+  .modal-actions a {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+}
+
+.modal-content .panel-header {
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 1rem !important;
+}
+
+.modal-content .panel-header > button {
+  width: auto !important;
+  display: inline-flex !important;
+}

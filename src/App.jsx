@@ -6,19 +6,51 @@ import {
 } from 'lucide-react';
 import './index.css';
 
-// Academy Branches
-const branches = ["Kuttiady", "Perambra", "Orkatteri", "Paarakadav", "Kallachi", "Chambra", "Devargovil"];
+// Academy Branches static list fallback
+const DEFAULT_BRANCHES = ["Kuttiady", "Perambra", "Orkatteri", "Paarakadav", "Kallachi", "Chambra", "Devargovil"];
 
-// Mock Initial Data
-const initialStudents = [
-  { id: 1, name: "Ali Khan", age: 24, phone: "555-0101", belt: "Black", joinDate: "2024-01-15", status: "Active", admissionPaid: "2024-01", paidMonths: { "2026-05": true }, batch: "Evening", schedule: "Mon-Thu", performanceScore: 92, branch: "Kuttiady" },
-  { id: 2, name: "Sarah Ahmed", age: 19, phone: "555-0102", belt: "Blue", joinDate: "2025-06-20", status: "Active", admissionPaid: "2025-06", paidMonths: {}, batch: "Morning", schedule: "Tue-Fri", performanceScore: 78, branch: "Perambra" },
-  { id: 3, name: "Omar Farooq", age: 22, phone: "555-0103", belt: "White", joinDate: "2026-05-02", status: "Active", admissionPaid: false, paidMonths: {}, batch: "Night", schedule: "Wed-Sat", performanceScore: 45, branch: "Orkatteri" },
-  { id: 4, name: "Zara Ali", age: 21, phone: "555-0104", belt: "Green", joinDate: "2025-11-05", status: "Active", admissionPaid: "2025-11", paidMonths: { "2026-05": true }, batch: "Evening", schedule: "Mon-Thu", performanceScore: 85, branch: "Kuttiady" }
-];
+
+const API_BASE_URL = 'http://localhost:5000/api';
 
 function App() {
-  const [appMode, setAppMode] = useState('website'); // 'website', 'login', 'superadmin-login', 'batch-login', 'admin'
+  // Bulletproof Cookie Parser
+  const getCookieValue = (name) => {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.startsWith(name + '=')) {
+        return cookie.substring(name.length + 1);
+      }
+    }
+    return '';
+  };
+
+  const [appMode, setAppMode] = useState(() => {
+    const hash = window.location.hash;
+    const cookies = document.cookie.split(';');
+    let hasSession = '';
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.startsWith('umai_session_user=')) {
+        hasSession = cookie.substring('umai_session_user='.length);
+        break;
+      }
+    }
+    
+    if (hasSession) {
+      return 'admin'; // Always restore admin dashboard if session exists!
+    }
+
+    if (hash === '#/superadmin') {
+      return 'superadmin-login';
+    } else if (hash === '#/login' || hash === '#/branch' || hash === '#/batch') {
+      return 'login';
+    } else if (hash === '#/admin') {
+      return 'login'; // No session? Force login
+    }
+    return 'website';
+  });
+
   const [currentView, setCurrentView] = useState('dashboard');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -26,7 +58,18 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
-  const [loggedInUser, setLoggedInUser] = useState('admin');
+  
+  const [loggedInUser, setLoggedInUser] = useState(() => {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.startsWith('umai_session_user=')) {
+        return cookie.substring('umai_session_user='.length);
+      }
+    }
+    return '';
+  });
+
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [selectedBranchLogin, setSelectedBranchLogin] = useState('Kuttiady');
   const [selectedBatchLogin, setSelectedBatchLogin] = useState('admin');
@@ -39,157 +82,83 @@ function App() {
   const [settingsError, setSettingsError] = useState('');
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [adminForm, setAdminForm] = useState({ account: 'admin', newUsername: '', newPassword: '', confirmPassword: '' });
+  const [createAdminForm, setCreateAdminForm] = useState({ username: '', password: '', confirmPassword: '' });
   const [branchForm, setBranchForm] = useState({ branch: 'kuttiady', newUsername: '', newPassword: '', confirmPassword: '' });
   const [batchForm, setBatchForm] = useState({ batch: 'batch1', newUsername: '', newPassword: '', confirmPassword: '' });
   
-  const [adminCredentials, setAdminCredentials] = useState(() => {
-    const saved = localStorage.getItem('umai_admin_credentials');
-    return saved ? JSON.parse(saved) : {
-      'admin': 'admin123',
-      'masterfit': 'fit123'
-    };
-  });
+  const [adminCredentials, setAdminCredentials] = useState({});
+  const [branches, setBranches] = useState(DEFAULT_BRANCHES);
 
   const isAdminUser = (user) => {
     if (!user) return false;
     const usernameClean = user.toLowerCase().trim();
     if (usernameClean.includes('@')) return false;
-    return usernameClean === 'admin' || Object.keys(adminCredentials).includes(usernameClean);
+    
+    // Fallback while adminCredentials are loading async
+    const sessionUser = getCookieValue('umai_session_user');
+    if (sessionUser && sessionUser.toLowerCase().trim() === usernameClean) {
+      return true;
+    }
+    return Object.keys(adminCredentials).includes(usernameClean);
   };
 
-  const [branchCredentials, setBranchCredentials] = useState(() => {
-    const saved = localStorage.getItem('umai_branch_credentials');
-    const initial = {
-      'kuttiady': { username: 'admin@kuttiady', password: 'kuttiady123' },
-      'perambra': { username: 'admin@perambra', password: 'perambra123' },
-      'orkatteri': { username: 'admin@orkatteri', password: 'orkatteri123' },
-      'paarakadav': { username: 'admin@paarakadav', password: 'paarakadav123' },
-      'kallachi': { username: 'admin@kallachi', password: 'kallachi123' },
-      'chambra': { username: 'admin@chambra', password: 'chambra123' },
-      'devargovil': { username: 'admin@devargovil', password: 'devargovil123' }
-    };
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const migrated = {};
-        Object.keys(parsed).forEach(key => {
-          if (typeof parsed[key] === 'string') {
-            migrated[key] = { username: `admin@${key}`, password: parsed[key] };
-          } else {
-            migrated[key] = parsed[key];
-          }
-        });
-        return migrated;
-      } catch (e) {
-        return initial;
-      }
-    }
-    return initial;
-  });
+  const [branchCredentials, setBranchCredentials] = useState({});
 
-  const [batchCredentials, setBatchCredentials] = useState(() => {
-    const saved = localStorage.getItem('umai_batch_credentials');
-    const initial = {
-      'batch1': { username: 'batch1', password: 'batch123' },
-      'batch2': { username: 'batch2', password: 'batch2123' },
-      'batch3': { username: 'batch3', password: 'batch3123' }
-    };
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const migrated = {};
-        Object.keys(parsed).forEach(key => {
-          if (typeof parsed[key] === 'string') {
-            migrated[key] = { username: key, password: parsed[key] };
-          } else {
-            migrated[key] = parsed[key];
-          }
-        });
-        return migrated;
-      } catch (e) {
-        return initial;
-      }
-    }
-    return initial;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('umai_admin_credentials', JSON.stringify(adminCredentials));
-  }, [adminCredentials]);
-
-  useEffect(() => {
-    localStorage.setItem('umai_branch_credentials', JSON.stringify(branchCredentials));
-  }, [branchCredentials]);
-
-  useEffect(() => {
-    localStorage.setItem('umai_batch_credentials', JSON.stringify(batchCredentials));
-  }, [batchCredentials]);
+  const [batchCredentials, setBatchCredentials] = useState({});
 
   const [attendanceTab, setAttendanceTab] = useState('monthly'); // 'monthly' or 'year2026'
   const [isEditingStudent, setIsEditingStudent] = useState(false);
   const [editingStudentData, setEditingStudentData] = useState(null);
   
   // Persistent State
-  const [students, setStudents] = useState(() => {
-    const saved = localStorage.getItem('umai_students');
-    let parsed = saved ? JSON.parse(saved) : initialStudents;
-
-    // Auto-inject requested students if they don't exist
-    const requiredStudents = [
-      { name: "Fanajir", age: 20, phone: "555-1001", belt: "White", joinDate: "2026-05-10", status: "Active", admissionPaid: "2026-05", paidMonths: { "2026-05": true }, batch: "Morning", schedule: "Mon-Thu", performanceScore: 50, branch: "Kuttiady" },
-      { name: "Ashiq 14", age: 14, phone: "555-1002", belt: "White", joinDate: "2026-05-10", status: "Active", admissionPaid: "2026-05", paidMonths: { "2026-05": true }, batch: "Evening", schedule: "Tue-Fri", performanceScore: 50, branch: "Perambra" },
-      { name: "Riswan pk", age: 22, phone: "555-1003", belt: "White", joinDate: "2026-05-10", status: "Active", admissionPaid: "2026-05", paidMonths: { "2026-05": true }, batch: "Night", schedule: "Wed-Sat", performanceScore: 50, branch: "Orkatteri" },
-      { name: "Shafnas", age: 25, phone: "555-1004", belt: "White", joinDate: "2026-05-10", status: "Active", admissionPaid: "2026-05", paidMonths: { "2026-05": true }, batch: "Morning", schedule: "Mon-Thu", performanceScore: 50, branch: "Kuttiady" }
-    ];
-
-    const existingNames = parsed.map(s => s.name.toLowerCase());
-    requiredStudents.forEach(req => {
-      if (!existingNames.includes(req.name.toLowerCase())) {
-        req.id = parsed.length > 0 ? Math.max(...parsed.map(s => s.id)) + 1 : 1;
-        parsed.push(req);
-      }
-    });
-    
-    // Migrate any stray data to new batches and paidMonths
-    return parsed.map(s => {
-      let updatedStudent = { ...s };
-      if (['Mon', 'Mon-Tue'].includes(s.schedule)) updatedStudent.schedule = 'Mon-Thu';
-      if (['Thu', 'Thu-Fri'].includes(s.schedule)) updatedStudent.schedule = 'Tue-Fri';
-      if (['Wed', 'Wed-Sat', 'Tue', 'Sat', 'Fri'].includes(s.schedule)) updatedStudent.schedule = 'Wed-Sat';
-      if (!s.performanceScore) updatedStudent.performanceScore = Math.floor(Math.random() * 40) + 50;
-      
-      // Migrate to paidMonths object
-      if (updatedStudent.paidMonths === undefined) {
-        const currentMonthKey = new Date().toISOString().slice(0, 7);
-        updatedStudent.paidMonths = updatedStudent.currentMonthPaid ? { [currentMonthKey]: true } : {};
-        delete updatedStudent.currentMonthPaid;
-      }
-      
-      // Migrate admissionPaid to month string if it's currently a boolean true
-      if (updatedStudent.admissionPaid === true) {
-        updatedStudent.admissionPaid = updatedStudent.joinDate ? updatedStudent.joinDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
-      }
-      
-      // Migrate missing branch
-      if (!updatedStudent.branch) {
-        updatedStudent.branch = "Kuttiady";
-      }
-      return updatedStudent;
-    });
-  });
+  const [students, setStudents] = useState([]);
   
-  const [attendanceRecords, setAttendanceRecords] = useState(() => {
-    const saved = localStorage.getItem('umai_attendance');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [attendanceRecords, setAttendanceRecords] = useState({});
 
+  // Sync state with backend on mount
   useEffect(() => {
-    localStorage.setItem('umai_students', JSON.stringify(students));
-  }, [students]);
+    // 1. Fetch Students
+    fetch(`${API_BASE_URL}/students`)
+      .then(res => {
+        if (!res.ok) throw new Error('API server down');
+        return res.json();
+      })
+      .then(data => {
+        setStudents(data || []);
+      })
+      .catch(err => console.error('Error fetching students:', err));
 
-  useEffect(() => {
-    localStorage.setItem('umai_attendance', JSON.stringify(attendanceRecords));
-  }, [attendanceRecords]);
+    // 2. Fetch Attendance
+    fetch(`${API_BASE_URL}/attendance`)
+      .then(res => {
+        if (!res.ok) throw new Error('API server down');
+        return res.json();
+      })
+      .then(data => {
+        setAttendanceRecords(data || {});
+      })
+      .catch(err => console.error('Error fetching attendance:', err));
+
+    // 3. Fetch Credentials
+    fetch(`${API_BASE_URL}/credentials`)
+      .then(res => {
+        if (!res.ok) throw new Error('API server down');
+        return res.json();
+      })
+      .then(data => {
+        if (data) {
+          setAdminCredentials(data.adminCredentials || {});
+          setBranchCredentials(data.branchCredentials || {});
+          setBatchCredentials(data.batchCredentials || {});
+          if (data.branchCredentials && Object.keys(data.branchCredentials).length > 0) {
+            const dbBranches = Object.keys(data.branchCredentials).map(b => b.charAt(0).toUpperCase() + b.slice(1));
+            const uniqueBranches = Array.from(new Set([...dbBranches, ...DEFAULT_BRANCHES]));
+            setBranches(uniqueBranches);
+          }
+        }
+      })
+      .catch(err => console.error('Error fetching credentials:', err));
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -203,12 +172,22 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
+      const hasSession = getCookieValue('umai_session_user');
+
       if (hash === '#/superadmin') {
-        setAppMode('superadmin-login');
+        if (hasSession) {
+          window.location.hash = '#/admin';
+        } else {
+          setAppMode('superadmin-login');
+        }
       } else if (hash === '#/login' || hash === '#/branch' || hash === '#/batch') {
-        setAppMode('login');
+        if (hasSession) {
+          window.location.hash = '#/admin';
+        } else {
+          setAppMode('login');
+        }
       } else if (hash === '#/admin') {
-        setAppMode(prevMode => (prevMode === 'admin' ? 'admin' : 'login'));
+        setAppMode(hasSession ? 'admin' : 'login');
       } else if (hash === '' || hash === '#/' || hash === '#/home') {
         setAppMode('website');
       }
@@ -323,6 +302,15 @@ function App() {
     if (studentToDelete !== null) {
       setStudents(students.filter(s => s.id !== studentToDelete));
       setSelectedStudent(null);
+
+      fetch(`${API_BASE_URL}/students/${studentToDelete}`, {
+        method: 'DELETE'
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to delete on server');
+        })
+        .catch(err => console.error("Error deleting student:", err));
+      
       setStudentToDelete(null);
     }
   };
@@ -350,8 +338,17 @@ function App() {
       paidMonths: {},
       performanceScore: 50
     };
+    
     setStudents([...students, student]);
     setIsAddModalOpen(false);
+    
+    fetch(`${API_BASE_URL}/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(student)
+    })
+      .then(res => res.json())
+      .catch(err => console.error("Error creating student:", err));
     
     if (appMode === 'login' || appMode === 'superadmin-login') {
       alert(`Enrollment request for ${newStudent.name} submitted successfully!`);
@@ -360,46 +357,213 @@ function App() {
     setNewStudent({ name: '', age: '', phone: '', belt: 'White', joinDate: new Date().toISOString().split('T')[0], batch: 'Morning', schedule: 'Mon-Thu', branch: defaultBranch, photo: null });
   };
 
+  const calculateStudentFees = (student, targetMonth = null) => {
+    if (!student) return { monthlyDue: 0, admissionDue: 0, totalDue: 0, unpaidMonths: [], paidMonthsList: [] };
+
+    // 1. Admission Due
+    const admissionDue = student.admissionPaid ? 0 : 2000;
+
+    // 2. Monthly Fees Due
+    let joinDateObj;
+    try {
+      joinDateObj = new Date(student.joinDate);
+      if (isNaN(joinDateObj.getTime())) {
+        joinDateObj = new Date();
+      }
+    } catch (e) {
+      joinDateObj = new Date();
+    }
+
+    const currentMonthStr = targetMonth || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const joinMonthStr = student.joinDate ? student.joinDate.slice(0, 7) : currentMonthStr; // YYYY-MM
+
+    const unpaidMonths = [];
+    const paidMonthsList = [];
+
+    // Loop through months from joinMonthStr to currentMonthStr
+    let [joinYear, joinMonth] = joinMonthStr.split('-').map(Number);
+    let [currYear, currMonth] = currentMonthStr.split('-').map(Number);
+
+    if (joinYear && joinMonth && currYear && currMonth) {
+      let tempYear = joinYear;
+      let tempMonth = joinMonth;
+
+      while (tempYear < currYear || (tempYear === currYear && tempMonth <= currMonth)) {
+        const monthStr = `${tempYear}-${String(tempMonth).padStart(2, '0')}`;
+        const isPaid = student.paidMonths && student.paidMonths[monthStr];
+
+        if (isPaid) {
+          paidMonthsList.push(monthStr);
+        } else {
+          unpaidMonths.push(monthStr);
+        }
+
+        tempMonth++;
+        if (tempMonth > 12) {
+          tempMonth = 1;
+          tempYear++;
+        }
+      }
+    }
+
+    const monthlyDue = unpaidMonths.length * 1000;
+    const totalDue = admissionDue + monthlyDue;
+
+    return {
+      admissionDue,
+      monthlyDue,
+      totalDue,
+      unpaidMonths,
+      paidMonthsList
+    };
+  };
+
   const markFeePaid = (id, feeType) => {
-    setStudents(students.map(s => {
+    let updatedStudent = null;
+    const updatedStudentsList = students.map(s => {
       if (s.id === id) {
+        let updated = { ...s };
         if (feeType === 'currentMonthPaid') {
-          return { ...s, paidMonths: { ...(s.paidMonths || {}), [feeMonth]: true } };
+          updated.paidMonths = { ...(s.paidMonths || {}), [feeMonth]: true };
+        } else if (feeType === 'admissionPaid') {
+          updated.admissionPaid = feeMonth;
+        } else {
+          updated[feeType] = true;
         }
-        if (feeType === 'admissionPaid') {
-          return { ...s, admissionPaid: feeMonth };
-        }
-        return { ...s, [feeType]: true };
+        updatedStudent = updated;
+        return updated;
       }
       return s;
-    }));
+    });
+
+    setStudents(updatedStudentsList);
+    if (selectedStudent && selectedStudent.id === id) {
+      setSelectedStudent(updatedStudent);
+    }
+
+    if (updatedStudent) {
+      fetch(`${API_BASE_URL}/students/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStudent)
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Error updating fee status:", err));
+    }
   };
 
   const unmarkFeePaid = (id, feeType) => {
-    setStudents(students.map(s => {
+    let updatedStudent = null;
+    const updatedStudentsList = students.map(s => {
       if (s.id === id) {
+        let updated = { ...s };
         if (feeType === 'currentMonthPaid') {
           const newPaidMonths = { ...s.paidMonths };
           delete newPaidMonths[feeMonth];
-          return { ...s, paidMonths: newPaidMonths };
+          updated.paidMonths = newPaidMonths;
+        } else if (feeType === 'admissionPaid') {
+          updated.admissionPaid = false;
+        } else {
+          updated[feeType] = false;
         }
-        if (feeType === 'admissionPaid') {
-          return { ...s, admissionPaid: false };
-        }
-        return { ...s, [feeType]: false };
+        updatedStudent = updated;
+        return updated;
       }
       return s;
-    }));
+    });
+
+    setStudents(updatedStudentsList);
+    if (selectedStudent && selectedStudent.id === id) {
+      setSelectedStudent(updatedStudent);
+    }
+
+    if (updatedStudent) {
+      fetch(`${API_BASE_URL}/students/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStudent)
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Error updating fee status:", err));
+    }
+  };
+
+  const markFeePaidCustomMonth = (id, targetMonth) => {
+    let updatedStudent = null;
+    const updatedStudentsList = students.map(s => {
+      if (s.id === id) {
+        let updated = { ...s };
+        updated.paidMonths = { ...(s.paidMonths || {}), [targetMonth]: true };
+        updatedStudent = updated;
+        return updated;
+      }
+      return s;
+    });
+
+    setStudents(updatedStudentsList);
+    if (selectedStudent && selectedStudent.id === id) {
+      setSelectedStudent(updatedStudent);
+    }
+
+    if (updatedStudent) {
+      fetch(`${API_BASE_URL}/students/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStudent)
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Error updating fee status:", err));
+    }
+  };
+
+  const unmarkFeePaidCustomMonth = (id, targetMonth) => {
+    let updatedStudent = null;
+    const updatedStudentsList = students.map(s => {
+      if (s.id === id) {
+        let updated = { ...s };
+        const newPaidMonths = { ...s.paidMonths };
+        delete newPaidMonths[targetMonth];
+        updated.paidMonths = newPaidMonths;
+        updatedStudent = updated;
+        return updated;
+      }
+      return s;
+    });
+
+    setStudents(updatedStudentsList);
+    if (selectedStudent && selectedStudent.id === id) {
+      setSelectedStudent(updatedStudent);
+    }
+
+    if (updatedStudent) {
+      fetch(`${API_BASE_URL}/students/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStudent)
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Error updating fee status:", err));
+    }
   };
 
   const markAttendance = (studentId, status) => {
+    const newDateRecords = {
+      ...(attendanceRecords[markingDate] || {}),
+      [studentId]: status
+    };
+
     setAttendanceRecords(prev => ({
       ...prev,
-      [markingDate]: {
-        ...(prev[markingDate] || {}),
-        [studentId]: status
-      }
+      [markingDate]: newDateRecords
     }));
+
+    fetch(`${API_BASE_URL}/attendance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: markingDate, records: newDateRecords })
+    })
+      .then(res => res.json())
+      .catch(err => console.error("Error marking attendance:", err));
   };
 
   // --- Public Website View ---
@@ -758,7 +922,7 @@ function App() {
                 </div>
               </div>
               
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+              <div className="filter-row" style={{ marginBottom: '0.5rem' }}>
                 <span style={{color: 'var(--color-text-muted)', width: '80px', fontSize: '0.85rem'}}>Time:</span>
                 <button className={`btn-small ${attendanceBatchFilter === 'All' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setAttendanceBatchFilter('All')}>All</button>
                 <button className={`btn-small ${attendanceBatchFilter === 'Morning' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setAttendanceBatchFilter('Morning')}>Morning</button>
@@ -767,7 +931,7 @@ function App() {
               </div>
               
               {(!loggedInUser || !loggedInUser.startsWith('batch')) && (
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
+                <div className="filter-row" style={{ marginBottom: '1.5rem' }}>
                   <span style={{color: 'var(--color-text-muted)', width: '80px', fontSize: '0.85rem'}}>Batch:</span>
                   <button className={`btn-small ${attendanceScheduleFilter === 'All' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setAttendanceScheduleFilter('All')}>All Batches</button>
                   <button className={`btn-small ${attendanceScheduleFilter === 'Mon-Thu' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setAttendanceScheduleFilter('Mon-Thu')}>Batch 1 (Mon-Thu)</button>
@@ -776,59 +940,61 @@ function App() {
                 </div>
               )}
               
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Batch Info</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {searchedStudents.filter(s => {
-                    const matchBatch = attendanceBatchFilter === 'All' || s.batch === attendanceBatchFilter;
-                    const matchSchedule = attendanceScheduleFilter === 'All' || s.schedule === attendanceScheduleFilter;
-                    return matchBatch && matchSchedule;
-                  }).map(student => {
-                    const status = attendanceRecords[markingDate]?.[student.id];
-                    return (
-                      <tr key={student.id}>
-                        <td 
-                          style={{ fontWeight: 500, color: '#E50914', cursor: 'pointer', textDecoration: 'underline' }}
-                          onClick={() => setSelectedStudent(student)}
-                        >
-                          {student.name}
-                        </td>
-                        <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.schedule} • {student.batch}</span></td>
-                        <td>
-                          {status === 'present' && <span className="badge badge-green">Present</span>}
-                          {status === 'absent' && <span className="badge badge-red">Absent</span>}
-                          {!status && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Pending</span>}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              className={`btn-small ${status === 'present' ? 'btn-primary' : ''}`}
-                              style={status === 'present' ? { backgroundColor: '#4CAF50', borderColor: '#4CAF50' } : {}}
-                              onClick={() => markAttendance(student.id, 'present')}
-                            >
-                              <CheckCircle size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> Present
-                            </button>
-                            <button 
-                              className={`btn-small ${status === 'absent' ? 'btn-primary' : ''}`}
-                              style={status === 'absent' ? { backgroundColor: '#F44336', borderColor: '#F44336' } : {}}
-                              onClick={() => markAttendance(student.id, 'absent')}
-                            >
-                              <XCircle size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> Absent
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Batch Info</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchedStudents.filter(s => {
+                      const matchBatch = attendanceBatchFilter === 'All' || s.batch === attendanceBatchFilter;
+                      const matchSchedule = attendanceScheduleFilter === 'All' || s.schedule === attendanceScheduleFilter;
+                      return matchBatch && matchSchedule;
+                    }).map(student => {
+                      const status = attendanceRecords[markingDate]?.[student.id];
+                      return (
+                        <tr key={student.id}>
+                          <td 
+                            style={{ fontWeight: 500, color: '#E50914', cursor: 'pointer', textDecoration: 'underline' }}
+                            onClick={() => setSelectedStudent(student)}
+                          >
+                            {student.name}
+                          </td>
+                          <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.schedule} • {student.batch}</span></td>
+                          <td>
+                            {status === 'present' && <span className="badge badge-green">Present</span>}
+                            {status === 'absent' && <span className="badge badge-red">Absent</span>}
+                            {!status && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Pending</span>}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className={`btn-small ${status === 'present' ? 'btn-primary' : ''}`}
+                                style={status === 'present' ? { backgroundColor: '#4CAF50', borderColor: '#4CAF50' } : {}}
+                                onClick={() => markAttendance(student.id, 'present')}
+                              >
+                                <CheckCircle size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> Present
+                              </button>
+                              <button 
+                                className={`btn-small ${status === 'absent' ? 'btn-primary' : ''}`}
+                                style={status === 'absent' ? { backgroundColor: '#F44336', borderColor: '#F44336' } : {}}
+                                onClick={() => markAttendance(student.id, 'absent')}
+                              >
+                                <XCircle size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> Absent
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="calendar-container panel">
@@ -871,7 +1037,7 @@ function App() {
       const batchTotalCollected = batchMonthlyCollected + batchAdmissionCollected;
       
       return (
-        <div className="panel" style={{ overflowX: 'auto', marginTop: '2rem' }}>
+        <div className="panel" style={{ marginTop: '2rem' }}>
           <div className="panel-header">
             <h3 className="panel-title">{scheduleName} Batch ({feeMonth})</h3>
             <div style={{ display: 'flex', gap: '1rem' }}>
@@ -901,52 +1067,63 @@ function App() {
             </div>
           </div>
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Batch Time</th>
-                <th>Admission (₹2000)</th>
-                <th>Monthly (₹1000)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {batchStudents.map(student => (
-                <tr key={student.id}>
-                  <td>
-                    <div 
-                      style={{ fontWeight: 500, color: '#E50914', cursor: 'pointer', textDecoration: 'underline' }}
-                      onClick={() => setSelectedStudent(student)}
-                    >
-                      {student.name}
-                    </div>
-                  </td>
-                  <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.batch}</span></td>
-                  <td>
-                    {student.admissionPaid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
-                  </td>
-                  <td>
-                    {isPaid(student) ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {!student.admissionPaid ? (
-                        <button onClick={() => markFeePaid(student.id, 'admissionPaid')} className="btn-small">Pay Admission</button>
-                      ) : (
-                        <button onClick={() => unmarkFeePaid(student.id, 'admissionPaid')} className="btn-small btn-secondary">Undo Admission</button>
-                      )}
-                      {!isPaid(student) ? (
-                        <button onClick={() => markFeePaid(student.id, 'currentMonthPaid')} className="btn-small btn-primary">Pay Monthly</button>
-                      ) : (
-                        <button onClick={() => unmarkFeePaid(student.id, 'currentMonthPaid')} className="btn-small btn-secondary">Undo Monthly</button>
-                      )}
-                    </div>
-                  </td>
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Batch Time</th>
+                  <th>Admission (₹2000)</th>
+                  <th>Monthly (₹1000)</th>
+                  <th>Outstanding Dues</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {batchStudents.map(student => {
+                  const feeDetails = calculateStudentFees(student);
+                  return (
+                    <tr key={student.id}>
+                      <td>
+                        <div 
+                          style={{ fontWeight: 500, color: '#E50914', cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={() => setSelectedStudent(student)}
+                        >
+                          {student.name}
+                        </div>
+                      </td>
+                      <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.batch}</span></td>
+                      <td>
+                        {student.admissionPaid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
+                      </td>
+                      <td>
+                        {isPaid(student) ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: feeDetails.totalDue > 0 ? '#E50914' : '#4CAF50' }}>
+                          ₹{feeDetails.totalDue}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {!student.admissionPaid ? (
+                            <button onClick={() => markFeePaid(student.id, 'admissionPaid')} className="btn-small">Pay Admission</button>
+                          ) : (
+                            <button onClick={() => unmarkFeePaid(student.id, 'admissionPaid')} className="btn-small btn-secondary">Undo Admission</button>
+                          )}
+                          {!isPaid(student) ? (
+                            <button onClick={() => markFeePaid(student.id, 'currentMonthPaid')} className="btn-small btn-primary">Pay Monthly</button>
+                          ) : (
+                            <button onClick={() => unmarkFeePaid(student.id, 'currentMonthPaid')} className="btn-small btn-secondary">Undo Monthly</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     };
@@ -954,7 +1131,7 @@ function App() {
     return (
       <div className="fees-container">
         {/* Month Selector Header */}
-        <div className="panel" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="panel panel-header-flex" style={{ marginBottom: '2rem' }}>
           <h2 className="panel-title" style={{ margin: 0 }}>Fee Management</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>Select Month:</span>
@@ -1003,39 +1180,44 @@ function App() {
         <div className="panel-header">
           <h3 className="panel-title">Student Tracking</h3>
         </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Belt Level</th>
-              <th>Batch</th>
-              <th>Skill Score</th>
-              <th>Progress to Next Belt</th>
-            </tr>
-          </thead>
-          <tbody>
-            {searchedStudents.map(student => (
-              <tr key={student.id}>
-                <td style={{ fontWeight: 500, color: 'var(--color-text-light)' }}>{student.name}</td>
-                <td><span className={`badge ${getBeltColorClass(student.belt)}`}>{student.belt}</span></td>
-                <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)' }}>{student.schedule}</span></td>
-                <td><span style={{ fontWeight: 'bold', color: student.performanceScore > 80 ? '#4CAF50' : '#FF9800' }}>{student.performanceScore}/100</span></td>
-                <td style={{ width: '30%' }}>
-                  <div className="progress-container">
-                    <div className="progress-bar" style={{ width: `${student.performanceScore}%` }}></div>
-                  </div>
-                </td>
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Belt Level</th>
+                <th>Batch</th>
+                <th>Skill Score</th>
+                <th>Progress to Next Belt</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {searchedStudents.map(student => (
+                <tr key={student.id}>
+                  <td style={{ fontWeight: 500, color: 'var(--color-text-light)' }}>{student.name}</td>
+                  <td><span className={`badge ${getBeltColorClass(student.belt)}`}>{student.belt}</span></td>
+                  <td><span className="badge" style={{ background: 'rgba(255,255,255,0.05)' }}>{student.schedule}</span></td>
+                  <td><span style={{ fontWeight: 'bold', color: student.performanceScore > 80 ? '#4CAF50' : '#FF9800' }}>{student.performanceScore}/100</span></td>
+                  <td style={{ width: '30%' }}>
+                    <div className="progress-container">
+                      <div className="progress-bar" style={{ width: `${student.performanceScore}%` }}></div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 
   const renderReminders = () => {
     const currentSystemMonth = new Date().toISOString().slice(0, 7);
-    const unpaidStudents = searchedStudents.filter(s => !s.paidMonths || !s.paidMonths[currentSystemMonth]);
+    const unpaidStudents = searchedStudents.filter(s => {
+      const fees = calculateStudentFees(s, currentSystemMonth);
+      return fees.totalDue > 0;
+    });
     return (
       <div className="reminders-container">
         <div className="panel" style={{ marginBottom: '2rem', background: 'rgba(229, 9, 20, 0.1)', border: '1px solid rgba(229, 9, 20, 0.3)' }}>
@@ -1046,7 +1228,7 @@ function App() {
               <p style={{ margin: '0.5rem 0 0 0', color: 'var(--color-text-muted)' }}>Auto alerts triggered: 30 days since last payment. Notify students below.</p>
             </div>
           </div>
-          <button className="btn-primary" onClick={() => alert('Automated reminders triggered!')}>
+          <button className="btn-primary w-full-mobile" onClick={() => alert('Automated reminders triggered!')}>
             <Bell size={18} /> Send All Reminders Now
           </button>
         </div>
@@ -1056,30 +1238,50 @@ function App() {
             <h3 className="panel-title">Pending Action ({unpaidStudents.length})</h3>
           </div>
           {unpaidStudents.length > 0 ? (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Student Name</th>
-                  <th>Phone</th>
-                  <th>Due Amount</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unpaidStudents.map(student => (
-                  <tr key={student.id}>
-                    <td onClick={() => setSelectedStudent(student)} style={{ cursor: 'pointer', color: '#E50914' }}>{student.name}</td>
-                    <td>{student.phone}</td>
-                    <td><span className="badge badge-red">₹{!student.admissionPaid ? 3000 : 1000}</span></td>
-                    <td>
-                      <a href={`https://wa.me/${student.phone}`} target="_blank" rel="noreferrer" className="btn-small" style={{ background: '#25D366', color: 'white', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
-                        <MessageCircle size={14} /> WhatsApp
-                      </a>
-                    </td>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Student Name</th>
+                    <th>Phone</th>
+                    <th>Due Amount</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {unpaidStudents.map(student => {
+                    const fees = calculateStudentFees(student, currentSystemMonth);
+                    const brName = student.branch.toUpperCase();
+                    let msg = `Hi ${student.name}, this is a reminder from MASTER FIT Academy (${brName}). You have pending dues: `;
+                    const items = [];
+                    if (fees.admissionDue > 0) items.push(`Admission Fee (₹${fees.admissionDue})`);
+                    if (fees.unpaidMonths.length > 0) items.push(`Monthly Fees for ${fees.unpaidMonths.join(', ')} (₹${fees.monthlyDue})`);
+                    msg += items.join(' and ') + `. Total outstanding: ₹${fees.totalDue}. Please clear it as soon as possible. Thank you!`;
+                    const encodedMsg = encodeURIComponent(msg);
+
+                    return (
+                      <tr key={student.id}>
+                        <td onClick={() => setSelectedStudent(student)} style={{ cursor: 'pointer', color: '#E50914', textDecoration: 'underline' }}>{student.name}</td>
+                        <td>{student.phone}</td>
+                        <td>
+                          <span className="badge badge-red">₹{fees.totalDue}</span>
+                          <span style={{ fontSize: '0.75rem', display: 'block', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                            {fees.admissionDue > 0 ? 'Admission' : ''}
+                            {fees.admissionDue > 0 && fees.unpaidMonths.length > 0 ? ' + ' : ''}
+                            {fees.unpaidMonths.length > 0 ? `${fees.unpaidMonths.length}m monthly` : ''}
+                          </span>
+                        </td>
+                        <td>
+                          <a href={`https://wa.me/${student.phone}?text=${encodedMsg}`} target="_blank" rel="noreferrer" className="btn-small" style={{ background: '#25D366', color: 'white', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
+                            <MessageCircle size={14} /> WhatsApp
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-muted)' }}>
               <CheckCircle size={48} style={{ color: '#4CAF50', marginBottom: '1rem' }} />
@@ -1117,18 +1319,108 @@ function App() {
         return;
       }
       
-      setAdminCredentials(prev => {
-        const updated = { ...prev };
-        // If username changed, delete the old key and insert new one
-        if (user !== acc) {
-          delete updated[acc];
-        }
-        updated[user] = pass;
-        return updated;
-      });
+      const updatedAdminCreds = { ...adminCredentials };
+      if (user !== acc) {
+        delete updatedAdminCreds[acc];
+      }
+      updatedAdminCreds[user] = pass;
+
+      fetch(`${API_BASE_URL}/credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminCredentials: updatedAdminCreds })
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to update credentials on server');
+          return res.json();
+        })
+        .then(data => {
+          setAdminCredentials(data.adminCredentials || {});
+          setSettingsSuccess(`Admin account "${user}" credentials updated successfully!`);
+          setAdminForm({ account: 'admin', newUsername: '', newPassword: '', confirmPassword: '' });
+        })
+        .catch(err => {
+          setSettingsError('Error updating credentials: ' + err.message);
+        });
+    };
+
+    const handleCreateAdmin = (e) => {
+      e.preventDefault();
+      setSettingsError('');
+      setSettingsSuccess('');
       
-      setSettingsSuccess(`Admin account "${user}" credentials updated successfully!`);
-      setAdminForm({ account: 'admin', newUsername: '', newPassword: '', confirmPassword: '' });
+      const user = createAdminForm.username.toLowerCase().trim();
+      const pass = createAdminForm.password;
+      
+      if (!user) {
+        setSettingsError('Username is required');
+        return;
+      }
+      
+      if (adminCredentials[user]) {
+        setSettingsError('Username already exists');
+        return;
+      }
+      
+      if (pass !== createAdminForm.confirmPassword) {
+        setSettingsError('Passwords do not match');
+        return;
+      }
+      
+      const updatedAdminCreds = { ...adminCredentials, [user]: pass };
+
+      fetch(`${API_BASE_URL}/credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminCredentials: updatedAdminCreds })
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to create account on server');
+          return res.json();
+        })
+        .then(data => {
+          setAdminCredentials(data.adminCredentials || {});
+          setSettingsSuccess(`New Admin account "${user}" created successfully!`);
+          setCreateAdminForm({ username: '', password: '', confirmPassword: '' });
+        })
+        .catch(err => {
+          setSettingsError('Error creating admin account: ' + err.message);
+        });
+    };
+
+    const handleDeleteAdminAccount = (accountToDelete) => {
+      if (Object.keys(adminCredentials).length <= 1) {
+        setSettingsError('You cannot delete the last remaining admin account.');
+        return;
+      }
+      if (accountToDelete === loggedInUser) {
+        setSettingsError('You cannot delete the account you are currently logged in with.');
+        return;
+      }
+      if (!window.confirm(`Are you sure you want to delete the admin account "${accountToDelete}"?`)) {
+        return;
+      }
+      
+      const updatedAdminCreds = { ...adminCredentials };
+      delete updatedAdminCreds[accountToDelete];
+
+      fetch(`${API_BASE_URL}/credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminCredentials: updatedAdminCreds })
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to delete account on server');
+          return res.json();
+        })
+        .then(data => {
+          setAdminCredentials(data.adminCredentials || {});
+          setSettingsSuccess(`Admin account "${accountToDelete}" deleted successfully!`);
+          setAdminForm({ account: 'admin', newUsername: '', newPassword: '', confirmPassword: '' });
+        })
+        .catch(err => {
+          setSettingsError('Error deleting admin account: ' + err.message);
+        });
     };
 
     const handleUpdateBranchPassword = (e) => {
@@ -1145,13 +1437,25 @@ function App() {
         return;
       }
       
-      setBranchCredentials(prev => ({
-        ...prev,
+      const updatedBranchCreds = {
+        ...branchCredentials,
         [br]: { username: user, password: pass }
-      }));
-      
-      setSettingsSuccess(`Branch Coordinator credentials for "${br.toUpperCase()}" updated successfully!`);
-      setBranchForm({ branch: br, newUsername: '', newPassword: '', confirmPassword: '' });
+      };
+
+      fetch(`${API_BASE_URL}/credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchCredentials: updatedBranchCreds })
+      })
+        .then(res => res.json())
+        .then(data => {
+          setBranchCredentials(data.branchCredentials || {});
+          setSettingsSuccess(`Branch Coordinator credentials for "${br.toUpperCase()}" updated successfully!`);
+          setBranchForm({ branch: br, newUsername: '', newPassword: '', confirmPassword: '' });
+        })
+        .catch(err => {
+          setSettingsError('Error updating credentials: ' + err.message);
+        });
     };
 
     const handleUpdateBatchPassword = (e) => {
@@ -1168,13 +1472,25 @@ function App() {
         return;
       }
       
-      setBatchCredentials(prev => ({
-        ...prev,
+      const updatedBatchCreds = {
+        ...batchCredentials,
         [bt]: { username: user, password: pass }
-      }));
-      
-      setSettingsSuccess(`Batch Coordinator credentials for "${bt.toUpperCase()}" updated successfully!`);
-      setBatchForm({ batch: bt, newUsername: '', newPassword: '', confirmPassword: '' });
+      };
+
+      fetch(`${API_BASE_URL}/credentials`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchCredentials: updatedBatchCreds })
+      })
+        .then(res => res.json())
+        .then(data => {
+          setBatchCredentials(data.batchCredentials || {});
+          setSettingsSuccess(`Batch Coordinator credentials for "${bt.toUpperCase()}" updated successfully!`);
+          setBatchForm({ batch: bt, newUsername: '', newPassword: '', confirmPassword: '' });
+        })
+        .catch(err => {
+          setSettingsError('Error updating credentials: ' + err.message);
+        });
     };
 
     return (
@@ -1188,7 +1504,7 @@ function App() {
             <h3 className="panel-title">Update Admin Accounts</h3>
           </div>
           <form onSubmit={handleUpdateAdmin}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            <div className="grid-2-col" style={{ marginBottom: '1.5rem' }}>
               <div className="form-group">
                 <label>Select Admin Account</label>
                 <select className="form-control" value={adminForm.account} onChange={(e) => setAdminForm({ ...adminForm, account: e.target.value, newUsername: e.target.value })}>
@@ -1202,7 +1518,7 @@ function App() {
                 <input type="text" className="form-control" placeholder="Enter new username" value={adminForm.newUsername} onChange={(e) => setAdminForm({ ...adminForm, newUsername: e.target.value })} />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            <div className="grid-2-col" style={{ marginBottom: '1.5rem' }}>
               <div className="form-group">
                 <label>New Password</label>
                 <input type="password" className="form-control" placeholder="Enter new password" required value={adminForm.newPassword} onChange={(e) => setAdminForm({ ...adminForm, newPassword: e.target.value })} />
@@ -1212,12 +1528,117 @@ function App() {
                 <input type="password" className="form-control" placeholder="Confirm new password" required value={adminForm.confirmPassword} onChange={(e) => setAdminForm({ ...adminForm, confirmPassword: e.target.value })} />
               </div>
             </div>
-            <button type="submit" className="btn-primary">Update Admin Account</button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button type="submit" className="btn-primary">Update Admin Account</button>
+              {adminForm.account !== loggedInUser && (
+                <button 
+                  type="button" 
+                  className="btn-primary" 
+                  style={{ backgroundColor: '#F44336', borderColor: '#F44336' }}
+                  onClick={() => handleDeleteAdminAccount(adminForm.account)}
+                >
+                  Delete Selected Account
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
+        {/* Create New Admin Account */}
+        <div className="panel" style={{ marginBottom: '2rem' }}>
+          <div className="panel-header" style={{ marginBottom: '1.5rem' }}>
+            <h3 className="panel-title">Create New Admin Account</h3>
+          </div>
+          <form onSubmit={handleCreateAdmin}>
+            <div className="grid-2-col" style={{ marginBottom: '1.5rem' }}>
+              <div className="form-group">
+                <label>Admin Username</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Enter username" 
+                  required 
+                  value={createAdminForm.username} 
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, username: e.target.value })} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Admin Password</label>
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  placeholder="Enter password" 
+                  required 
+                  value={createAdminForm.password} 
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, password: e.target.value })} 
+                />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label>Confirm Password</label>
+              <input 
+                type="password" 
+                className="form-control" 
+                placeholder="Confirm password" 
+                required 
+                value={createAdminForm.confirmPassword} 
+                onChange={(e) => setCreateAdminForm({ ...createAdminForm, confirmPassword: e.target.value })} 
+              />
+            </div>
+            <button type="submit" className="btn-primary">Create Admin Account</button>
+          </form>
+        </div>
+
+        {/* Admin Accounts List & Management */}
+        <div className="panel" style={{ marginBottom: '2rem' }}>
+          <div className="panel-header" style={{ marginBottom: '1.5rem' }}>
+            <h3 className="panel-title">Admin User Accounts List</h3>
+          </div>
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(adminCredentials).map(acc => (
+                  <tr key={acc}>
+                    <td style={{ fontWeight: 500, color: 'var(--color-text-light)' }}>{acc}</td>
+                    <td>
+                      {acc === 'admin' ? (
+                        <span className="badge" style={{ background: 'rgba(255,255,255,0.05)' }}>Default Superadmin</span>
+                      ) : acc === loggedInUser ? (
+                        <span className="badge badge-green">Logged In</span>
+                      ) : (
+                        <span className="badge" style={{ background: 'rgba(255,255,255,0.05)' }}>Admin</span>
+                      )}
+                    </td>
+                    <td>
+                      {acc !== loggedInUser ? (
+                        <button 
+                          type="button"
+                          className="btn-small" 
+                          style={{ backgroundColor: '#F44336', borderColor: '#F44336' }}
+                          onClick={() => handleDeleteAdminAccount(acc)}
+                        >
+                          Delete Account
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Non-deletable</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Coordinator Passwords Management */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div className="grid-2-col" style={{ gap: '2rem' }}>
           {/* Branch Passwords */}
           <div className="panel">
             <div className="panel-header" style={{ marginBottom: '1.5rem' }}>
@@ -1318,47 +1739,41 @@ function App() {
                 const enteredUser = loginData.username.toLowerCase().trim();
                 const enteredPassword = loginData.password;
 
-                let isValid = false;
-                let fullUsername = '';
-
-                if (batchKey === 'admin') {
-                  const storedCreds = branchCredentials[branchKey] || {};
-                  const expectedUser1 = 'admin';
-                  const expectedUser2 = `admin@${branchKey}`;
-                  const customUser = (storedCreds.username || '').toLowerCase().trim();
-                  
-                  const isUserValid = enteredUser === expectedUser1 || enteredUser === expectedUser2 || (customUser && enteredUser === customUser);
-                  const isPasswordValid = enteredPassword === (storedCreds.password || '') || enteredPassword === 'branch123';
-                  
-                  if (isUserValid && isPasswordValid) {
-                    isValid = true;
-                    fullUsername = `admin@${branchKey}`;
-                  }
-                } else {
-                  const storedCreds = batchCredentials[batchKey] || {};
-                  const expectedUser1 = batchKey;
-                  const expectedUser2 = `${batchKey}@${branchKey}`;
-                  const customUser = (storedCreds.username || '').toLowerCase().trim();
-                  
-                  const isUserValid = enteredUser === expectedUser1 || enteredUser === expectedUser2 || (customUser && enteredUser === customUser);
-                  const isPasswordValid = enteredPassword === (storedCreds.password || '');
-                  
-                  if (isUserValid && isPasswordValid) {
-                    isValid = true;
-                    fullUsername = `${batchKey}@${branchKey}`;
-                  }
-                }
-
-                if (isValid) {
-                  setLoginError('');
-                  setLoggedInUser(fullUsername);
-                  const matchingBranch = branches.find(b => b.toLowerCase() === branchKey);
-                  setBranchFilter(matchingBranch || 'All');
-                  setLoginData({ username: '', password: '' });
-                  setAppMode('admin');
-                } else {
-                  setLoginError('Invalid username or password for selected branch and batch');
-                }
+                fetch(`${API_BASE_URL}/login`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    loginType: 'coordinator',
+                    username: enteredUser,
+                    password: enteredPassword,
+                    branch: branchKey,
+                    batch: batchKey
+                  })
+                })
+                  .then(res => {
+                    if (!res.ok) {
+                      return res.json().then(errData => {
+                        throw new Error(errData.error || 'Invalid username or password for selected branch and batch');
+                      });
+                    }
+                    return res.json();
+                  })
+                  .then(data => {
+                    if (data.success) {
+                      setLoginError('');
+                      setLoggedInUser(data.username);
+                      document.cookie = `umai_session_user=${data.username}; path=/;`;
+                      const matchingBranch = branches.find(b => b.toLowerCase() === branchKey);
+                      setBranchFilter(matchingBranch || 'All');
+                      setLoginData({ username: '', password: '' });
+                      setAppMode('admin');
+                    } else {
+                      setLoginError(data.error || 'Invalid username or password for selected branch and batch');
+                    }
+                  })
+                  .catch(err => {
+                    setLoginError(err.message);
+                  });
               }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label>Select Branch</label>
@@ -1443,15 +1858,40 @@ function App() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const usernameLower = loginData.username.toLowerCase().trim();
-              if (adminCredentials[usernameLower] && adminCredentials[usernameLower] === loginData.password) {
-                setLoginError('');
-                setLoggedInUser(usernameLower);
-                setBranchFilter('All');
-                setLoginData({ username: '', password: '' });
-                setAppMode('admin');
-              } else {
-                setLoginError('Invalid admin username or password');
-              }
+              const enteredPassword = loginData.password;
+
+              fetch(`${API_BASE_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  loginType: 'superadmin',
+                  username: usernameLower,
+                  password: enteredPassword
+                })
+              })
+                .then(res => {
+                  if (!res.ok) {
+                    return res.json().then(errData => {
+                      throw new Error(errData.error || 'Invalid admin username or password');
+                    });
+                  }
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.success) {
+                    setLoginError('');
+                    setLoggedInUser(data.username);
+                    document.cookie = `umai_session_user=${data.username}; path=/;`;
+                    setBranchFilter('All');
+                    setLoginData({ username: '', password: '' });
+                    setAppMode('admin');
+                  } else {
+                    setLoginError(data.error || 'Invalid admin username or password');
+                  }
+                })
+                .catch(err => {
+                  setLoginError(err.message);
+                });
             }}>
               <div className="form-group" style={{ textAlign: 'left' }}>
                 <label>Admin Username</label>
@@ -1532,7 +1972,10 @@ function App() {
             </a>
           )}
           <a className="nav-item" onClick={() => {
-            if (isAdminUser(loggedInUser)) {
+            const isAdm = isAdminUser(loggedInUser);
+            document.cookie = "umai_session_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            setLoggedInUser('');
+            if (isAdm) {
               setAppMode('superadmin-login');
             } else {
               setAppMode('login');
@@ -1636,7 +2079,7 @@ function App() {
                 </div>
               </div>
 
-              <div className="panel" style={{ overflowX: 'auto' }}>
+              <div className="panel">
                 <div className="panel-header">
                   <h3 className="panel-title">Academy Roster</h3>
                   <button className="btn-primary" onClick={() => {
@@ -1648,54 +2091,56 @@ function App() {
                   </button>
                 </div>
                 {searchedStudents.length > 0 ? (
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Batch Schedule</th>
-                        <th>Belt Level</th>
-                        <th>Phone</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {searchedStudents.map(student => (
-                        <tr key={student.id}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setSelectedStudent(student)}>
-                              {student.photo ? (
-                                <img src={student.photo} alt="" style={{ width: '30px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
-                              ) : (
-                                <div style={{ width: '30px', height: '40px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: 'white', textDecoration: 'none' }}>
-                                  {student.name.charAt(0)}
-                                </div>
-                              )}
-                              <span style={{ fontWeight: 500, color: '#E50914', textDecoration: 'underline' }}>{student.name}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="badge" style={{ background: 'rgba(229, 9, 20, 0.15)', color: '#FFD700', border: '1px solid rgba(255, 215, 0, 0.3)', marginRight: '8px' }}>{student.branch}</span>
-                            <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.schedule} • {student.batch}</span>
-                          </td>
-                          <td><span className={`badge ${getBeltColorClass(student.belt)}`}>{student.belt}</span></td>
-                          <td style={{ color: 'var(--color-text-muted)' }}>{student.phone}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <a href={`tel:${student.phone}`} className="btn-icon" style={{ color: '#2196F3' }} title="Call Student">
-                                <Phone size={18} />
-                              </a>
-                              <a href={`https://wa.me/${student.phone}`} target="_blank" rel="noreferrer" className="btn-icon" style={{ color: '#25D366' }} title="WhatsApp Student">
-                                <MessageCircle size={18} />
-                              </a>
-                              <button className="btn-icon" onClick={() => handleDeleteStudent(student.id)} style={{ color: '#F44336' }} title="Delete">
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                          </td>
+                  <div className="table-responsive">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Batch Schedule</th>
+                          <th>Belt Level</th>
+                          <th>Phone</th>
+                          <th>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {searchedStudents.map(student => (
+                          <tr key={student.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setSelectedStudent(student)}>
+                                {student.photo ? (
+                                  <img src={student.photo} alt="" style={{ width: '30px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '30px', height: '40px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: 'white', textDecoration: 'none' }}>
+                                    {student.name.charAt(0)}
+                                  </div>
+                                )}
+                                <span style={{ fontWeight: 500, color: '#E50914', textDecoration: 'underline' }}>{student.name}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="badge" style={{ background: 'rgba(229, 9, 20, 0.15)', color: '#FFD700', border: '1px solid rgba(255, 215, 0, 0.3)', marginRight: '8px' }}>{student.branch}</span>
+                              <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>{student.schedule} • {student.batch}</span>
+                            </td>
+                            <td><span className={`badge ${getBeltColorClass(student.belt)}`}>{student.belt}</span></td>
+                            <td style={{ color: 'var(--color-text-muted)' }}>{student.phone}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <a href={`tel:${student.phone}`} className="btn-icon" style={{ color: '#2196F3' }} title="Call Student">
+                                  <Phone size={18} />
+                                </a>
+                                <a href={`https://wa.me/${student.phone}`} target="_blank" rel="noreferrer" className="btn-icon" style={{ color: '#25D366' }} title="WhatsApp Student">
+                                  <MessageCircle size={18} />
+                                </a>
+                                <button className="btn-icon" onClick={() => handleDeleteStudent(student.id)} style={{ color: '#F44336' }} title="Delete">
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>No students found.</div>
                 )}
@@ -1730,6 +2175,15 @@ function App() {
                 setStudents(students.map(s => s.id === editingStudentData.id ? editingStudentData : s));
                 setSelectedStudent(editingStudentData);
                 setIsEditingStudent(false);
+                
+                fetch(`${API_BASE_URL}/students/${editingStudentData.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(editingStudentData)
+                })
+                  .then(res => res.json())
+                  .catch(err => console.error("Error updating student profile:", err));
+
                 setEditingStudentData(null);
               }}>
                 <div style={{ padding: '1rem 0' }}>
@@ -1743,7 +2197,7 @@ function App() {
                       required 
                     />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div className="grid-2-col">
                     <div className="form-group">
                       <label>Age</label>
                       <input 
@@ -1765,7 +2219,7 @@ function App() {
                       />
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div className="grid-2-col">
                     <div className="form-group">
                       <label>Batch Schedule</label>
                       <select 
@@ -1791,7 +2245,7 @@ function App() {
                       </select>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div className="grid-2-col">
                     <div className="form-group">
                       <label>Branch</label>
                       <select 
@@ -1829,7 +2283,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                <div className="modal-actions">
                   <button type="button" className="btn-secondary" onClick={() => {
                     setIsEditingStudent(false);
                     setEditingStudentData(null);
@@ -1840,8 +2294,8 @@ function App() {
             ) : (
               <>
                 <div style={{ padding: '1rem 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  <div className="profile-header-top">
+                    <div className="profile-info-left">
                       {selectedStudent.photo ? (
                         <img src={selectedStudent.photo} alt={selectedStudent.name} style={{ width: '90px', height: '120px', borderRadius: '8px', objectFit: 'cover', border: '2px solid var(--color-primary)' }} />
                       ) : (
@@ -1854,7 +2308,7 @@ function App() {
                     <span className={`badge ${getBeltColorClass(selectedStudent.belt)}`}>{selectedStudent.belt}</span>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                  <div className="grid-2-col" style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)', gap: '1rem' }}>
                     <div><span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Age</span><div style={{ fontWeight: 600 }}>{selectedStudent.age} Years</div></div>
                     <div>
                       <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Phone</span>
@@ -1877,19 +2331,73 @@ function App() {
                     </div>
                   </div>
 
-                  <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-                    <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Financial</h4>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <span>Admission Fee</span>
-                      {selectedStudent.admissionPaid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Monthly Fee ({new Date().toISOString().slice(0, 7)})</span>
-                      {(selectedStudent.paidMonths && selectedStudent.paidMonths[new Date().toISOString().slice(0, 7)]) ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Pending</span>}
-                    </div>
-                  </div>
+                  {(() => {
+                    const feeDetails = calculateStudentFees(selectedStudent);
+                    return (
+                      <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Financial Summary</h4>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                          <span>Admission Fee (₹2000):</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {selectedStudent.admissionPaid ? (
+                              <>
+                                <span className="badge badge-green">Paid ({selectedStudent.admissionPaid})</span>
+                                <button className="btn-small btn-secondary" style={{ padding: '2px 6px', fontSize: '0.75rem' }} onClick={() => unmarkFeePaid(selectedStudent.id, 'admissionPaid')}>Undo</button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="badge badge-red">Pending (₹2000)</span>
+                                <button className="btn-small btn-primary" style={{ padding: '2px 6px', fontSize: '0.75rem' }} onClick={() => markFeePaid(selectedStudent.id, 'admissionPaid')}>Pay</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <span>Outstanding Monthly Fees:</span>
+                          <span style={{ fontWeight: 600, color: feeDetails.monthlyDue > 0 ? '#E50914' : '#4CAF50' }}>₹{feeDetails.monthlyDue}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontWeight: 'bold', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.75rem' }}>
+                          <span>Total Dues:</span>
+                          <span style={{ fontSize: '1.2rem', color: feeDetails.totalDue > 0 ? '#E50914' : '#4CAF50' }}>₹{feeDetails.totalDue}</span>
+                        </div>
+
+                        {/* Unpaid Months List */}
+                        {feeDetails.unpaidMonths.length > 0 && (
+                          <div style={{ marginBottom: '1rem' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>UNPAID MONTHS ({feeDetails.unpaidMonths.length})</div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {feeDetails.unpaidMonths.map(m => (
+                                <div key={m} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(229, 9, 20, 0.1)', border: '1px solid rgba(229, 9, 20, 0.2)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                  <span style={{ color: 'white' }}>{m}</span>
+                                  <button style={{ border: 'none', background: 'var(--color-primary)', color: 'white', borderRadius: '3px', cursor: 'pointer', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 'bold' }} onClick={() => markFeePaidCustomMonth(selectedStudent.id, m)}>Pay</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Paid Months List */}
+                        {feeDetails.paidMonthsList.length > 0 && (
+                          <div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>PAID MONTHS ({feeDetails.paidMonthsList.length})</div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {feeDetails.paidMonthsList.map(m => (
+                                <div key={m} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(76, 175, 80, 0.1)', border: '1px solid rgba(76, 175, 80, 0.2)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                  <span style={{ color: 'white' }}>{m}</span>
+                                  <button style={{ border: 'none', background: 'rgba(255,255,255,0.1)', color: 'white', borderRadius: '3px', cursor: 'pointer', padding: '2px 6px', fontSize: '0.7rem' }} onClick={() => unmarkFeePaidCustomMonth(selectedStudent.id, m)}>Undo</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                <div className="modal-actions">
                   {isAdminUser(loggedInUser) && (
                     <button className="btn-primary" onClick={() => {
                       setEditingStudentData(selectedStudent);
@@ -1930,7 +2438,7 @@ function App() {
                 <label>Full Name</label>
                 <input type="text" className="form-control" required value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} placeholder="Enter name"/>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div className="grid-2-col">
                 <div className="form-group">
                   <label>Age</label>
                   <input type="number" className="form-control" required value={newStudent.age} onChange={(e) => setNewStudent({...newStudent, age: e.target.value})} placeholder="21"/>
@@ -1940,7 +2448,7 @@ function App() {
                   <input type="tel" className="form-control" required value={newStudent.phone} onChange={(e) => setNewStudent({...newStudent, phone: e.target.value})} placeholder="Phone number"/>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div className="grid-2-col">
                 <div className="form-group">
                   <label>Batch Schedule</label>
                   <select className="form-control" value={newStudent.schedule} onChange={(e) => setNewStudent({...newStudent, schedule: e.target.value})}>
@@ -1958,7 +2466,7 @@ function App() {
                   </select>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div className="grid-2-col">
                 <div className="form-group">
                   <label>Branch</label>
                   <select 
@@ -2007,7 +2515,7 @@ function App() {
                 <label>Joining Date</label>
                 <input type="date" className="form-control" required value={newStudent.joinDate} onChange={(e) => setNewStudent({...newStudent, joinDate: e.target.value})}/>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', gap: '1rem' }}>
+              <div className="modal-actions" style={{ marginTop: '1rem' }}>
                 <button type="button" className="btn-secondary" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn-primary">Complete Enrollment</button>
               </div>
@@ -2027,9 +2535,9 @@ function App() {
               <h2 style={{ margin: '0 0 0.5rem 0', fontFamily: 'var(--font-heading)' }}>Delete Student?</h2>
               <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>This action cannot be undone.</p>
             </div>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button className="btn-secondary" onClick={() => setStudentToDelete(null)} style={{ flex: 1 }}>Cancel</button>
-              <button className="btn-primary" onClick={confirmDelete} style={{ flex: 1, justifyContent: 'center' }}>Delete</button>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setStudentToDelete(null)}>Cancel</button>
+              <button className="btn-primary" onClick={confirmDelete}>Delete</button>
             </div>
           </div>
         </div>
